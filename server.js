@@ -36,7 +36,7 @@ app.post("/ocr", upload.single("image"), async (req, res) => {
     }
 
     // HANDWRITING + PRINTED OCR
-    const [result] = await client.textDetection(req.file.buffer);
+    const [result] = await client.documenttextDetection(req.file.buffer);
 
     const annotations = result.textAnnotations || [];
     const fullText = annotations.length > 0 ? annotations[0].description : "";
