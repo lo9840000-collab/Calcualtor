@@ -1,74 +1,71 @@
-// ------------------------------
-// CLEAN WORKING SERVER (v5.3.0)
-// ------------------------------
+// ---- REQUIRE MODULES ----
+const express = require("express");
+const multer = require("multer");
+const cors = require("cors");
+const vision = require("@google-cloud/vision");
 
-import express from "express";
-import multer from "multer";
-import cors from "cors";
-import fs from "fs";
-import visionLib from "@google-cloud/vision";
-
+// ---- EXPRESS APP ----
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Multer: store uploaded image in RAM
+// ---- MEMORY STORAGE ----
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Google Vision credentials (Render secret file)
+// ---- GOOGLE VISION KEY PATH ----
 const CREDENTIALS_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
-// Vision client (v5 syntax)
-const client = new visionLib.ImageAnnotatorClient({
+// ---- VISION CLIENT ----
+const client = new vision.ImageAnnotatorClient({
   keyFilename: CREDENTIALS_PATH,
 });
 
-// Extract smart digits (printed + handwritten)
-function extractDigitsSmart(fullText) {
-  const matches = fullText.match(/\d+(\.\d+)?/g);
+// ---- SMART NUMERIC EXTRACTION ----
+function extractDigitsSmart(text) {
+  const matches = text.match(/\d+(\.\d+)?/g);
   return matches ? matches.map(n => Number(n)) : [];
 }
 
-// =======================
-// MAIN OCR ENDPOINT
-// =======================
+// --------------------------------------
+// ----------- OCR ENDPOINT -------------
+// --------------------------------------
 app.post("/ocr", upload.single("image"), async (req, res) => {
   try {
     if (!req.file) {
-      return res.json({ success: false, error: "No file uploaded" });
+      return res.status(400).json({ error: "No image uploaded" });
     }
 
-    // Use Vision API
-    const [result] = await client.documentTextDetection(req.file.buffer);
+    // HANDWRITING + PRINTED OCR
+    const [result] = await client.textDetection(req.file.buffer);
 
-    const fullText = result.fullTextAnnotation?.text || "";
+    const annotations = result.textAnnotations || [];
+    const fullText = annotations.length > 0 ? annotations[0].description : "";
+
     const numbers = extractDigitsSmart(fullText);
 
-    // Attempt to extract grand total
     let detectedTotal = null;
-    const totalRegex = /(grand[\s-]*total|total)\D{0,10}(\d[\d,\.]+)/i;
-    const match = fullText.match(totalRegex);
-
-    if (match) {
-      detectedTotal = Number(match[2].replace(/,/g, ""));
+    if (numbers.length > 0) {
+      detectedTotal = Math.max(...numbers);
     }
 
     res.json({
-      success: true,
       fullText,
       numbers,
+      sum: numbers.reduce((a, b) => a + b, 0),
       detectedTotal,
     });
 
   } catch (err) {
-    res.json({ success: false, error: err.message });
+    console.error("OCR ERROR:", err);
+    res.status(500).json({ error: "OCR processing failed" });
   }
 });
 
-// =======================
-// SERVER START
-// =======================
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("OCR server running on", PORT);
+// ---- HOME ROUTE ----
+app.get("/", (req, res) => {
+  res.send("OCR Backend Running ✔");
 });
+
+// ---- START SERVER ----
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log("Server running on port", PORT));
