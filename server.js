@@ -1,8 +1,8 @@
-// ---- REQUIRE MODULES ----
-const express = require("express");
-const multer = require("multer");
-const cors = require("cors");
-const vision = require("@google-cloud/vision");
+import express from "express";
+import multer from "multer";
+import cors from "cors";
+import vision from "@google-cloud/vision";
+
 
 // ---- EXPRESS APP ----
 const app = express();
